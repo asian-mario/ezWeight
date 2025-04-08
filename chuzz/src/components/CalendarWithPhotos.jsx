@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import Modal from './Modal';
 
 const sampleImages = [
   { date: '2025-01-01', src: '/api/placeholder/400/400?text=Jan+1' },
@@ -11,14 +12,15 @@ const sampleImages = [
   { date: '2025-04-01', src: '/api/placeholder/400/400?text=Apr+1' },
 ];
 
+const weightData = [185, 182, 180, 178, 176, 174, 172];
+const bodyFatData = [22, 21, 20, 19, 18.5, 17.5, 16.5];
+
 const CalendarWithPhotos = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isPlayingTimelapse, setIsPlayingTimelapse] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
-
-  const weightData = [185, 182, 180, 178, 176, 174, 172];
-  const bodyFatData = [22, 21, 20, 19, 18.5, 17.5, 16.5];
+  const [activePhoto, setActivePhoto] = useState(null);
 
   useEffect(() => {
     let interval;
@@ -54,6 +56,19 @@ const CalendarWithPhotos = () => {
   const dateHasImage = (day) => {
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return sampleImages.some(img => img.date === dateStr);
+  };
+
+  const handleDayClick = (day) => {
+    const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const imageIndex = sampleImages.findIndex(img => img.date === dateStr);
+
+    if (imageIndex !== -1) {
+      setActivePhoto({
+        ...sampleImages[imageIndex],
+        weight: weightData[imageIndex],
+        bodyFat: bodyFatData[imageIndex],
+      });
+    }
   };
 
   const previousMonth = () => {
@@ -166,57 +181,74 @@ const CalendarWithPhotos = () => {
   }
 
   return (
-    <div className="w-full bg-white rounded-lg shadow p-4">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center">
-          <h2 className="text-xl font-bold">{month} {year}</h2>
-          <button className="ml-2 p-1 rounded-full hover:bg-gray-100" onClick={toggleTimelapse} title="Play timelapse of progress photos">
-            <Play size={16} className="text-blue-600" />
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button className="p-1 rounded border border-gray-200 hover:bg-gray-100" onClick={previousMonth}>
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button className="p-1 rounded border border-gray-200 hover:bg-gray-100" onClick={nextMonth}>
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-7 gap-2">
-        {daysOfWeek.map(day => (
-          <div key={day} className="text-center text-sm font-medium text-gray-500 p-2">
-            {day}
-          </div>
-        ))}
-
-        {Array.from({ length: firstDayOfMonth }, (_, i) => (
-          <div key={`empty-${i}`} className="aspect-square"></div>
-        ))}
-
-        {Array.from({ length: daysInMonth }, (_, i) => {
-          const day = i + 1;
-          const hasImage = dateHasImage(day);
-
-          return (
-            <button
-              key={`day-${day}`}
-              className={`aspect-square rounded-lg relative overflow-hidden border ${hasImage ? 'border-blue-500' : 'border-gray-200'} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            >
-              {hasImage && (
-                <div className="absolute inset-0 bg-cover bg-center">
-                  <img src="/api/placeholder/100/100" alt="" className="w-full h-full object-cover opacity-75" />
-                </div>
-              )}
-              <div className={`absolute inset-0 flex items-center justify-center ${hasImage ? 'text-white font-bold shadow-sm' : 'text-gray-700'}`}>
-                {day}
-              </div>
+    <>
+      <div className="w-full bg-white rounded-lg shadow p-4">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center">
+            <h2 className="text-xl font-bold">{month} {year}</h2>
+            <button className="ml-2 p-1 rounded-full hover:bg-gray-100" onClick={toggleTimelapse} title="Play timelapse of progress photos">
+              <Play size={16} className="text-blue-600" />
             </button>
-          );
-        })}
+          </div>
+          <div className="flex gap-2">
+            <button className="p-1 rounded border border-gray-200 hover:bg-gray-100" onClick={previousMonth}>
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button className="p-1 rounded border border-gray-200 hover:bg-gray-100" onClick={nextMonth}>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2">
+          {daysOfWeek.map(day => (
+            <div key={day} className="text-center text-sm font-medium text-gray-500 p-2">
+              {day}
+            </div>
+          ))}
+
+          {Array.from({ length: firstDayOfMonth }, (_, i) => (
+            <div key={`empty-${i}`} className="aspect-square"></div>
+          ))}
+
+          {Array.from({ length: daysInMonth }, (_, i) => {
+            const day = i + 1;
+            const hasImage = dateHasImage(day);
+
+            return (
+              <button
+                key={`day-${day}`}
+                onClick={() => handleDayClick(day)}
+                className={`aspect-square rounded-lg relative overflow-hidden border ${hasImage ? 'border-blue-500' : 'border-gray-200'} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              >
+                {hasImage && (
+                  <div className="absolute inset-0 bg-cover bg-center">
+                    <img src="/api/placeholder/100/100" alt="" className="w-full h-full object-cover opacity-75" />
+                  </div>
+                )}
+                <div className={`absolute inset-0 flex items-center justify-center ${hasImage ? 'text-white font-bold shadow-sm' : 'text-gray-700'}`}>
+                  {day}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Photo Modal */}
+      <Modal isOpen={!!activePhoto} onClose={() => setActivePhoto(null)} title="Progress Details">
+        {activePhoto && (
+          <div className="space-y-4">
+            <img src={activePhoto.src} alt="Progress" className="w-full rounded-lg" />
+            <div className="text-sm text-gray-700 space-y-1">
+              <div><strong>Date:</strong> {activePhoto.date}</div>
+              <div><strong>Weight:</strong> {activePhoto.weight} kg</div>
+              <div><strong>Body Fat:</strong> {activePhoto.bodyFat}%</div>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 };
 
