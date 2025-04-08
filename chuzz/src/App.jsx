@@ -306,9 +306,12 @@ const ProgressTracker = () => {
   const SimpleLineChart = ({ data, dataKey, color }) => {
     const [hoveredIndex, setHoveredIndex] = useState(null);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const [animate, setAnimate] = useState(false);
+    const [pathLength, setPathLength] = useState(0);
   
     const containerRef = useRef(null);
     const pointRefs = useRef([]);
+    const pathRef = useRef(null);
   
     const values = data.map((item) => item[dataKey]);
     const min = Math.min(...values);
@@ -336,10 +339,9 @@ const ProgressTracker = () => {
       return d;
     };
   
-    // Update tooltip position after the DOM is updated
+    // Tooltip positioning
     useEffect(() => {
       if (hoveredIndex === null) return;
-  
       const circle = pointRefs.current[hoveredIndex];
       const container = containerRef.current;
   
@@ -352,6 +354,50 @@ const ProgressTracker = () => {
         });
       }
     }, [hoveredIndex]);
+  
+    // Get total path length
+    useEffect(() => {
+      if (pathRef.current) {
+        const length = pathRef.current.getTotalLength();
+        setPathLength(length);
+      }
+    }, [data]);
+  
+    // 🔥 NEW INTERSECTION OBSERVER FIX: Detect if already visible too
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+  
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            // trigger animation
+            setAnimate(false);
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => setAnimate(true));
+            });
+          } else {
+            // reset animation if it leaves view
+            setAnimate(false);
+          }
+        },
+        {
+          threshold: 0.4,
+        }
+      );
+  
+      observer.observe(el);
+  
+      // 💡 Check manually in case it's already in view on load
+      if (el.getBoundingClientRect().top < window.innerHeight) {
+        setAnimate(false);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setAnimate(true));
+        });
+      }
+  
+      return () => observer.disconnect();
+    }, []);
   
     return (
       <div
@@ -403,14 +449,20 @@ const ProgressTracker = () => {
             <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#f1f1f1" strokeWidth="1" />
           ))}
   
-          {/* Path */}
+          {/* Animated path line */}
           <path
+            ref={pathRef}
             d={generatePath(circleCoords)}
             fill="none"
             stroke={`url(#gradient-${dataKey})`}
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            style={{
+              strokeDasharray: pathLength,
+              strokeDashoffset: animate ? 0 : pathLength,
+              transition: "stroke-dashoffset 1s ease-out",
+            }}
           />
   
           {/* Data points */}
@@ -438,6 +490,7 @@ const ProgressTracker = () => {
       </div>
     );
   };
+  
   
   
 
