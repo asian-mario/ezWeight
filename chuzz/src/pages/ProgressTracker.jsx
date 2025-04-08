@@ -33,7 +33,7 @@ const ProgressTracker = () => {
     <>
       <header className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Progress Tracker</h1>
+          <h1 className="text-2xl font-bold text-gray-900">ezWeight</h1>
           <p className="text-gray-500">Track your fitness journey</p>
         </div>
         <button
