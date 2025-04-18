@@ -17,6 +17,7 @@ const ProgressTracker = () => {
     { date: '2025-03-01', weight: 176 },
     { date: '2025-03-15', weight: 174 },
     { date: '2025-04-01', weight: 172 },
+    { date: '2025-04-04', weight: 167 },
   ];
 
   const bodyFatData = [
@@ -27,6 +28,7 @@ const ProgressTracker = () => {
     { date: '2025-03-01', bodyFat: 18.5 },
     { date: '2025-03-15', bodyFat: 17.5 },
     { date: '2025-04-01', bodyFat: 16.5 },
+    { date: '2025-04-04', bodyFat: 16.0 },
   ];
 
   return (

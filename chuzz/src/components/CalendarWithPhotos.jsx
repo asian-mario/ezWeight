@@ -10,10 +10,11 @@ const sampleImages = [
   { date: '2025-03-01', src: '/api/placeholder/400/400?text=Mar+1' },
   { date: '2025-03-15', src: '/api/placeholder/400/400?text=Mar+15' },
   { date: '2025-04-01', src: '/api/placeholder/400/400?text=Apr+1' },
+  { date: '2025-04-03', src: '/api/placeholder/400/400?text=Apr+3' },
 ];
 
-const weightData = [185, 182, 180, 178, 176, 174, 172];
-const bodyFatData = [22, 21, 20, 19, 18.5, 17.5, 16.5];
+const weightData = [185, 182, 180, 178, 176, 174, 172, 167];
+const bodyFatData = [22, 21, 20, 19, 18.5, 17.5, 16.5, 16.0];
 
 const CalendarWithPhotos = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -21,6 +22,9 @@ const CalendarWithPhotos = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [activePhoto, setActivePhoto] = useState(null);
+
+  const getDateKey = (date) => date.toISOString().split('T')[0];
+  const imageDates = new Set(sampleImages.map(img => img.date));
 
   useEffect(() => {
     let interval;
@@ -56,6 +60,24 @@ const CalendarWithPhotos = () => {
   const dateHasImage = (day) => {
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return sampleImages.some(img => img.date === dateStr);
+  };
+
+  // Updated logic to ensure the adjacent days both before and after are considered
+  const getGlowLevel = (day) => {
+    const target = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day);
+    let closest = Infinity;
+
+    for (let i = 0; i <= 3; i++) {
+      const before = new Date(target);
+      before.setDate((day - i + 1));
+      const after = new Date(target);
+      after.setDate(day + i + 1);
+
+      if (imageDates.has(getDateKey(before))) closest = Math.min(closest, i);
+      if (imageDates.has(getDateKey(after))) closest = Math.min(closest, i);
+    }
+
+    return closest === Infinity ? 0 : closest;
   };
 
   const handleDayClick = (day) => {
@@ -212,14 +234,21 @@ const CalendarWithPhotos = () => {
           ))}
 
           {Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
+            const day = i+1;
             const hasImage = dateHasImage(day);
+            const glowLevel = getGlowLevel(day);
+
+            let glowClass = '';
+            if (hasImage) glowClass = 'bg-blue-200';
+            else if (glowLevel === 1) glowClass = 'bg-blue-200/60';
+            else if (glowLevel === 2) glowClass = 'bg-blue-200/40';
+            else if (glowLevel === 3) glowClass = 'bg-blue-200/20';
 
             return (
               <button
                 key={`day-${day}`}
                 onClick={() => handleDayClick(day)}
-                className={`aspect-square rounded-lg relative overflow-hidden border ${hasImage ? 'border-blue-500' : 'border-gray-200'} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`aspect-square rounded-lg relative overflow-hidden border ${hasImage ? 'border-blue-500' : 'border-gray-200'} ${glowClass} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
                 {hasImage && (
                   <div className="absolute inset-0 bg-cover bg-center">
