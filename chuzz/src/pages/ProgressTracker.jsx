@@ -62,39 +62,39 @@ const ProgressTracker = () => {
   };
 
   const weightData = [
-    { date: "2025-01-01", weight: 185 },
-    { date: "2025-01-15", weight: 182 },
-    { date: "2025-02-01", weight: 180 },
-    { date: "2025-02-15", weight: 178 },
-    { date: "2025-03-01", weight: 176 },
-    { date: "2025-03-15", weight: 174 },
-    { date: "2025-04-01", weight: 172 },
-    { date: "2025-04-03", weight: 171 },
-    { date: "2025-04-06", weight: 170 },
-    { date: "2025-04-09", weight: 169 },
-    { date: "2025-04-12", weight: 168 },
-    { date: "2025-04-15", weight: 167.5 },
-    { date: "2025-04-18", weight: 167 },
-    { date: "2025-04-24", weight: 166 },
-    { date: "2025-04-27", weight: 165.5 },
+    { date: '2025-01-01', weight: 185 },
+    { date: '2025-01-15', weight: 182 },
+    { date: '2025-02-01', weight: 180 },
+    { date: '2025-02-15', weight: 178 },
+    { date: '2025-03-01', weight: 176 },
+    { date: '2025-03-15', weight: 174 },
+    { date: '2025-04-01', weight: 172 },
+    { date: '2025-04-03', weight: 171 },
+    { date: '2025-04-06', weight: 170 },
+    { date: '2025-04-09', weight: 169 },
+    { date: '2025-04-12', weight: 168 },
+    { date: '2025-04-15', weight: 167.5 },
+    { date: '2025-04-18', weight: 167 },
+    { date: '2025-04-24', weight: 166 },
+    { date: '2025-04-27', weight: 165.5 },
   ];
 
   const bodyFatData = [
-    { date: "2025-01-01", bodyFat: 22 },
-    { date: "2025-01-15", bodyFat: 21 },
-    { date: "2025-02-01", bodyFat: 20 },
-    { date: "2025-02-15", bodyFat: 19 },
-    { date: "2025-03-01", bodyFat: 18.5 },
-    { date: "2025-03-15", bodyFat: 17.5 },
-    { date: "2025-04-01", bodyFat: 16.5 },
-    { date: "2025-04-03", bodyFat: 16.4 },
-    { date: "2025-04-06", bodyFat: 16.2 },
-    { date: "2025-04-09", bodyFat: 16.0 },
-    { date: "2025-04-12", bodyFat: 15.8 },
-    { date: "2025-04-15", bodyFat: 15.6 },
-    { date: "2025-04-18", bodyFat: 15.4 },
-    { date: "2025-04-24", bodyFat: 15.0 },
-    { date: "2025-04-27", bodyFat: 14.8 },
+    { date: '2025-01-01', bodyFat: 22 },
+    { date: '2025-01-15', bodyFat: 21 },
+    { date: '2025-02-01', bodyFat: 20 },
+    { date: '2025-02-15', bodyFat: 19 },
+    { date: '2025-03-01', bodyFat: 18.5 },
+    { date: '2025-03-15', bodyFat: 17.5 },
+    { date: '2025-04-01', bodyFat: 16.5 },
+    { date: '2025-04-03', bodyFat: 16.4 },
+    { date: '2025-04-06', bodyFat: 16.2 },
+    { date: '2025-04-09', bodyFat: 16.0 },
+    { date: '2025-04-12', bodyFat: 15.8 },
+    { date: '2025-04-15', bodyFat: 15.6 },
+    { date: '2025-04-18', bodyFat: 15.4 },
+    { date: '2025-04-24', bodyFat: 15.0 },
+    { date: '2025-04-27', bodyFat: 14.8 },
   ];
 
   return (
@@ -114,6 +114,7 @@ const ProgressTracker = () => {
       </header>
 
       <div className="space-y-6 pb-16">
+        <StreakBadge />
         <CalendarWithPhotos />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StatsSummary
