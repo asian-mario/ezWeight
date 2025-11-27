@@ -280,12 +280,15 @@ export const BodyProgressProvider = ({ children }) => {
             const imageFile = await handle.getFileHandle("image.jpg");
             const imageReader = await imageFile.getFile();
             const arrayBuffer = await imageReader.arrayBuffer();
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce(
-                (data, byte) => data + String.fromCharCode(byte),
-                ""
-              )
-            );
+            // Use chunked processing for base64 to avoid stack overflow
+            const uint8Array = new Uint8Array(arrayBuffer);
+            const chunkSize = 8192;
+            let base64 = "";
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              const chunk = uint8Array.subarray(i, i + chunkSize);
+              base64 += String.fromCharCode.apply(null, chunk);
+            }
+            base64 = btoa(base64);
 
             exportData.push({
               date: name,
@@ -331,12 +334,9 @@ export const BodyProgressProvider = ({ children }) => {
           await writer.write(JSON.stringify({ weight, bodyFat }, null, 2));
           await writer.close();
 
-          // Convert base64 to blob and save image
+          // Convert base64 to blob and save image using efficient Uint8Array.from
           const binaryStr = atob(imageBase64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
+          const bytes = Uint8Array.from(binaryStr, char => char.charCodeAt(0));
           const imageBlob = new Blob([bytes], { type: "image/jpeg" });
 
           const imageFileHandle = await dateDir.getFileHandle("image.jpg", {

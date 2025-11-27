@@ -17,7 +17,10 @@ const SimpleLineChart = ({ data, dataKey, color }) => {
   const chartPadding = 5;
 
   const circleCoords = data.map((item, index) => {
-    const x = chartPadding + (index / (data.length - 1)) * (100 - chartPadding * 2);
+    // Handle single data point case - center it
+    const x = data.length === 1 
+      ? 50 
+      : chartPadding + (index / (data.length - 1)) * (100 - chartPadding * 2);
     const normalizedValue = (item[dataKey] - min) / range;
     const y = 90 - normalizedValue * 80;
     return { x, y };
