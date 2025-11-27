@@ -163,17 +163,22 @@ export const BodyProgressProvider = ({ children }) => {
       }
 
       try {
-        const formattedMonth = monthDate
-          .toISOString()
-          .split("T")[0]
-          .slice(0, 7);
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const formattedMonth = `${year}-${String(month + 1).padStart(2, "0")}`;
 
-        // array of 0 to 31
-        let entries = [];
-        for (let i = 1; i < 32; i++)
-          entries.push(await getProgressEntry(`${formattedMonth}-${i}`));
+        // Create entries map by day
+        const entriesByDay = {};
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateStr = `${formattedMonth}-${String(day).padStart(2, "0")}`;
+          const entry = await getProgressEntry(dateStr);
+          if (entry) {
+            entriesByDay[day] = { ...entry, date: dateStr };
+          }
+        }
 
-        return entries.filter((entry) => entry !== null);
+        return entriesByDay;
       } catch (err) {
         console.error("Error getting progress entries:", err);
         throw err;
@@ -188,25 +193,168 @@ export const BodyProgressProvider = ({ children }) => {
     }
 
     try {
-      const entries = await directoryHandle.getEntries();
       const metrics = [];
 
-      for (const entry of entries) {
-        if (entry.isDirectory) {
-          const metricsFile = await entry.getFileHandle("metrics.json");
-          const metricsReader = await metricsFile.getFile();
-          const metricsData = await metricsReader.text();
-          const { weight, bodyFat } = JSON.parse(metricsData);
-          metrics.push({ date: entry.name, weight, bodyFat });
+      for await (const [name, handle] of directoryHandle.entries()) {
+        if (handle.kind === "directory") {
+          try {
+            const metricsFile = await handle.getFileHandle("metrics.json");
+            const metricsReader = await metricsFile.getFile();
+            const metricsData = await metricsReader.text();
+            const { weight, bodyFat } = JSON.parse(metricsData);
+            metrics.push({ date: name, weight: parseFloat(weight), bodyFat: parseFloat(bodyFat) });
+          } catch {
+            // Skip entries without metrics
+          }
         }
       }
 
+      // Sort by date
+      metrics.sort((a, b) => new Date(a.date) - new Date(b.date));
       return metrics;
     } catch (err) {
       console.error("Error getting all metrics:", err);
       throw err;
     }
   }, [directoryHandle, isReady]);
+
+  // Get all entries with images (for timelapse/gallery)
+  const getAllEntries = useCallback(async () => {
+    if (!isReady || !directoryHandle) {
+      throw new Error("OPFS is not ready");
+    }
+
+    try {
+      const entries = [];
+
+      for await (const [name, handle] of directoryHandle.entries()) {
+        if (handle.kind === "directory") {
+          try {
+            const metricsFile = await handle.getFileHandle("metrics.json");
+            const metricsReader = await metricsFile.getFile();
+            const metricsData = await metricsReader.text();
+            const { weight, bodyFat } = JSON.parse(metricsData);
+
+            const imageFile = await handle.getFileHandle("image.jpg");
+            const imageReader = await imageFile.getFile();
+            const imageBlob = URL.createObjectURL(imageReader);
+
+            entries.push({
+              date: name,
+              weight: parseFloat(weight),
+              bodyFat: parseFloat(bodyFat),
+              image: imageBlob,
+            });
+          } catch {
+            // Skip entries without complete data
+          }
+        }
+      }
+
+      // Sort by date
+      entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+      return entries;
+    } catch (err) {
+      console.error("Error getting all entries:", err);
+      throw err;
+    }
+  }, [directoryHandle, isReady]);
+
+  // Export all data as JSON with base64 images
+  const exportAllData = useCallback(async () => {
+    if (!isReady || !directoryHandle) {
+      throw new Error("OPFS is not ready");
+    }
+
+    try {
+      const exportData = [];
+
+      for await (const [name, handle] of directoryHandle.entries()) {
+        if (handle.kind === "directory") {
+          try {
+            const metricsFile = await handle.getFileHandle("metrics.json");
+            const metricsReader = await metricsFile.getFile();
+            const metricsData = await metricsReader.text();
+            const { weight, bodyFat } = JSON.parse(metricsData);
+
+            const imageFile = await handle.getFileHandle("image.jpg");
+            const imageReader = await imageFile.getFile();
+            const arrayBuffer = await imageReader.arrayBuffer();
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce(
+                (data, byte) => data + String.fromCharCode(byte),
+                ""
+              )
+            );
+
+            exportData.push({
+              date: name,
+              weight: parseFloat(weight),
+              bodyFat: parseFloat(bodyFat),
+              imageBase64: base64,
+            });
+          } catch {
+            // Skip incomplete entries
+          }
+        }
+      }
+
+      exportData.sort((a, b) => new Date(a.date) - new Date(b.date));
+      return exportData;
+    } catch (err) {
+      console.error("Error exporting data:", err);
+      throw err;
+    }
+  }, [directoryHandle, isReady]);
+
+  // Import data from JSON backup
+  const importData = useCallback(
+    async (importedData) => {
+      if (!isReady || !directoryHandle) {
+        throw new Error("OPFS is not ready");
+      }
+
+      try {
+        for (const entry of importedData) {
+          const { date, weight, bodyFat, imageBase64 } = entry;
+          
+          // Create date directory
+          const dateDir = await directoryHandle.getDirectoryHandle(date, {
+            create: true,
+          });
+
+          // Save metrics
+          const metricsFile = await dateDir.getFileHandle("metrics.json", {
+            create: true,
+          });
+          const writer = await metricsFile.createWritable();
+          await writer.write(JSON.stringify({ weight, bodyFat }, null, 2));
+          await writer.close();
+
+          // Convert base64 to blob and save image
+          const binaryStr = atob(imageBase64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const imageBlob = new Blob([bytes], { type: "image/jpeg" });
+
+          const imageFileHandle = await dateDir.getFileHandle("image.jpg", {
+            create: true,
+          });
+          const imageWriter = await imageFileHandle.createWritable();
+          await imageWriter.write(imageBlob);
+          await imageWriter.close();
+        }
+
+        return true;
+      } catch (err) {
+        console.error("Error importing data:", err);
+        throw err;
+      }
+    },
+    [directoryHandle, isReady]
+  );
 
   const value = {
     isReady,
@@ -215,6 +363,9 @@ export const BodyProgressProvider = ({ children }) => {
     getProgressEntry,
     getProgressEntriesMonth,
     getAllMetrics,
+    getAllEntries,
+    exportAllData,
+    importData,
   };
 
   return (
