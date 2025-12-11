@@ -1,28 +1,69 @@
-import React, { useState, useEffect } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Play, Pause, ChevronLeft, ChevronRight, Trash2, ImageOff } from "lucide-react";
 
 import Modal from "./Modal";
-import { sampleImages } from "../utils/calendarHelpers";
+import { useBodyProgress } from "../context/BodyProgressProvider";
 
-const weightData = [185, 182, 180, 178, 176, 174, 172, 167];
-const bodyFatData = [22, 21, 20, 19, 18.5, 17.5, 16.5, 16.0];
-
-const CalendarWithPhotos = () => {
+const CalendarWithPhotos = ({ onDataChange, onDayClick }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isPlayingTimelapse, setIsPlayingTimelapse] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [activePhoto, setActivePhoto] = useState(null);
+  const [entriesByDay, setEntriesByDay] = useState({});
+  const [allEntries, setAllEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const getDateKey = (date) => date.toISOString().split("T")[0];
-  const imageDates = new Set(sampleImages.map((img) => img.date));
+  const { isReady, getProgressEntriesMonth, getAllEntries, deleteProgressEntry } = useBodyProgress();
+
+  // Load month entries
+  const loadMonthEntries = useCallback(async () => {
+    if (!isReady) return;
+    
+    setLoading(true);
+    try {
+      const entries = await getProgressEntriesMonth(selectedDate);
+      setEntriesByDay(entries);
+    } catch (err) {
+      console.error("Error loading month entries:", err);
+      setEntriesByDay({});
+    } finally {
+      setLoading(false);
+    }
+  }, [isReady, selectedDate, getProgressEntriesMonth]);
+
+  // Load all entries for timelapse
+  const loadAllEntries = useCallback(async () => {
+    if (!isReady) return;
+    
+    try {
+      const entries = await getAllEntries();
+      setAllEntries(entries);
+    } catch (err) {
+      console.error("Error loading all entries:", err);
+      setAllEntries([]);
+    }
+  }, [isReady, getAllEntries]);
 
   useEffect(() => {
+    loadMonthEntries();
+  }, [loadMonthEntries]);
+
+  useEffect(() => {
+    loadAllEntries();
+  }, [loadAllEntries]);
+
+  const getDateKey = (date) => date.toISOString().split("T")[0];
+  const imageDates = new Set(allEntries.map((entry) => entry.date));
+
+  // Timelapse effect
+  useEffect(() => {
     let interval;
-    if (isPlayingTimelapse) {
+    if (isPlayingTimelapse && allEntries.length > 0) {
       interval = setInterval(() => {
         setCurrentImageIndex((prev) => {
-          if (prev >= sampleImages.length - 1) {
+          if (prev >= allEntries.length - 1) {
             setIsPlayingTimelapse(false);
             return 0;
           }
@@ -31,9 +72,11 @@ const CalendarWithPhotos = () => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isPlayingTimelapse]);
+  }, [isPlayingTimelapse, allEntries.length]);
 
   const toggleTimelapse = () => {
+    if (allEntries.length === 0) return;
+    
     if (!isCalendarExpanded) {
       setIsPlayingTimelapse(!isPlayingTimelapse);
     } else {
@@ -49,10 +92,7 @@ const CalendarWithPhotos = () => {
   };
 
   const dateHasImage = (day) => {
-    const dateStr = `${selectedDate.getFullYear()}-${String(
-      selectedDate.getMonth() + 1
-    ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return sampleImages.some((img) => img.date === dateStr);
+    return !!entriesByDay[day];
   };
 
   // Updated logic to ensure the adjacent days both before and after are considered
@@ -64,11 +104,11 @@ const CalendarWithPhotos = () => {
     );
     let closest = Infinity;
 
-    for (let i = 0; i <= 3; i++) {
+    for (let i = 1; i <= 3; i++) {
       const before = new Date(target);
-      before.setDate(day - i + 1);
+      before.setDate(target.getDate() - i);
       const after = new Date(target);
-      after.setDate(day + i + 1);
+      after.setDate(target.getDate() + i);
 
       if (imageDates.has(getDateKey(before))) closest = Math.min(closest, i);
       if (imageDates.has(getDateKey(after))) closest = Math.min(closest, i);
@@ -78,17 +118,33 @@ const CalendarWithPhotos = () => {
   };
 
   const handleDayClick = (day) => {
-    const dateStr = `${selectedDate.getFullYear()}-${String(
-      selectedDate.getMonth() + 1
-    ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const imageIndex = sampleImages.findIndex((img) => img.date === dateStr);
+    const entry = entriesByDay[day];
+    if (entry) {
+      setActivePhoto(entry);
+    } else {
+      // Empty slot - open add dialog with this date
+      if (onDayClick) {
+        const dateStr = `${selectedDate.getFullYear()}-${String(
+          selectedDate.getMonth() + 1
+        ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        onDayClick(dateStr);
+      }
+    }
+  };
 
-    if (imageIndex !== -1) {
-      setActivePhoto({
-        ...sampleImages[imageIndex],
-        weight: weightData[imageIndex],
-        bodyFat: bodyFatData[imageIndex],
-      });
+  const handleDelete = async (date) => {
+    try {
+      await deleteProgressEntry(date);
+      setDeleteConfirm(null);
+      setActivePhoto(null);
+      // Reload data
+      await loadMonthEntries();
+      await loadAllEntries();
+      // Notify parent of data change
+      if (onDataChange) onDataChange();
+    } catch (err) {
+      console.error("Error deleting entry:", err);
+      alert("Failed to delete entry. Please try again.");
     }
   };
 
@@ -118,9 +174,10 @@ const CalendarWithPhotos = () => {
   const month = selectedDate.toLocaleString("default", { month: "long" });
   const year = selectedDate.getFullYear();
 
-  if (!isCalendarExpanded) {
-    const currentImage = sampleImages[currentImageIndex];
-    const currentDate = new Date(currentImage.date);
+  // Timelapse View
+  if (!isCalendarExpanded && allEntries.length > 0) {
+    const currentEntry = allEntries[currentImageIndex];
+    const currentDate = new Date(currentEntry.date);
     const displayMonth = currentDate.toLocaleString("default", {
       month: "long",
     });
@@ -143,7 +200,7 @@ const CalendarWithPhotos = () => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
             <button
-              className="p-1 rounded border border-gray-200 hover:bg-gray-100"
+              className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-50"
               disabled={currentImageIndex === 0}
               onClick={() => {
                 setIsPlayingTimelapse(false);
@@ -158,12 +215,12 @@ const CalendarWithPhotos = () => {
             </span>
 
             <button
-              className="p-1 rounded border border-gray-200 hover:bg-gray-100"
-              disabled={currentImageIndex === sampleImages.length - 1}
+              className="p-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-50"
+              disabled={currentImageIndex === allEntries.length - 1}
               onClick={() => {
                 setIsPlayingTimelapse(false);
                 setCurrentImageIndex((prev) =>
-                  Math.min(sampleImages.length - 1, prev + 1)
+                  Math.min(allEntries.length - 1, prev + 1)
                 );
               }}
             >
@@ -192,16 +249,16 @@ const CalendarWithPhotos = () => {
         <div className="flex justify-center mb-4">
           <div className="relative w-full max-w-lg aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
             <img
-              src={currentImage.src}
-              alt={`Progress photo from ${currentImage.date}`}
-              className="max-w-full max-h-full"
+              src={currentEntry.image}
+              alt={`Progress photo from ${currentEntry.date}`}
+              className="max-w-full max-h-full object-contain"
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white p-2 text-center">
               <div className="text-sm">
                 <span className="font-bold">Weight:</span>{" "}
-                {weightData[currentImageIndex]} kg&nbsp;&nbsp;
+                {currentEntry.weight} kg&nbsp;&nbsp;
                 <span className="font-bold">Body Fat:</span>{" "}
-                {bodyFatData[currentImageIndex]}%
+                {currentEntry.bodyFat}%
               </div>
             </div>
           </div>
@@ -211,7 +268,7 @@ const CalendarWithPhotos = () => {
           <input
             type="range"
             min="0"
-            max={sampleImages.length - 1}
+            max={allEntries.length - 1}
             value={currentImageIndex}
             onChange={(e) => {
               setIsPlayingTimelapse(false);
@@ -220,8 +277,8 @@ const CalendarWithPhotos = () => {
             className="w-full"
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>{sampleImages[0].date}</span>
-            <span>{sampleImages[sampleImages.length - 1].date}</span>
+            <span>{allEntries[0]?.date}</span>
+            <span>{allEntries[allEntries.length - 1]?.date}</span>
           </div>
         </div>
       </div>
@@ -240,9 +297,10 @@ const CalendarWithPhotos = () => {
               aria-label={
                 isPlayingTimelapse ? "Pause timelapse" : "Play timelapse"
               }
-              className="ml-2 p-1 rounded-full hover:bg-gray-100"
+              className={`ml-2 p-1 rounded-full hover:bg-gray-100 ${allEntries.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={toggleTimelapse}
-              title="Play timelapse of progress photos"
+              title={allEntries.length === 0 ? "Add photos to enable timelapse" : "Play timelapse of progress photos"}
+              disabled={allEntries.length === 0}
             >
               <Play size={16} className="text-blue-600" />
             </button>
@@ -265,61 +323,77 @@ const CalendarWithPhotos = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
-          {daysOfWeek.map((day) => (
-            <div
-              key={day}
-              className="text-center text-sm font-medium text-gray-500 p-2"
-            >
-              {day}
-            </div>
-          ))}
-
-          {Array.from({ length: firstDayOfMonth }, (_, i) => (
-            <div key={`empty-${i}`} className="aspect-square"></div>
-          ))}
-
-          {Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
-            const hasImage = dateHasImage(day);
-            const glowLevel = getGlowLevel(day);
-
-            let glowClass = "";
-            if (hasImage) glowClass = "bg-blue-200";
-            else if (glowLevel === 1) glowClass = "bg-blue-200/60";
-            else if (glowLevel === 2) glowClass = "bg-blue-200/40";
-            else if (glowLevel === 3) glowClass = "bg-blue-200/20";
-
-            return (
-              <button
-                key={`day-${day}`}
-                onClick={() => handleDayClick(day)}
-                className={`aspect-square rounded-lg relative overflow-hidden border ${
-                  hasImage ? "border-blue-500" : "border-gray-200"
-                } ${glowClass} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-2">
+            {daysOfWeek.map((day) => (
+              <div
+                key={day}
+                className="text-center text-sm font-medium text-gray-500 p-2"
               >
-                {hasImage && (
-                  <div className="absolute inset-0 bg-cover bg-center">
-                    <img
-                      src="/api/placeholder/100/100"
-                      alt=""
-                      className="w-full h-full object-cover opacity-75"
-                    />
-                  </div>
-                )}
-                <div
-                  className={`absolute inset-0 flex items-center justify-center ${
-                    hasImage
-                      ? "text-white font-bold shadow-sm"
-                      : "text-gray-700"
-                  }`}
+                {day}
+              </div>
+            ))}
+
+            {Array.from({ length: firstDayOfMonth }, (_, i) => (
+              <div key={`empty-${i}`} className="aspect-square"></div>
+            ))}
+
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const hasImage = dateHasImage(day);
+              const glowLevel = getGlowLevel(day);
+              const entry = entriesByDay[day];
+
+              let glowClass = "";
+              if (hasImage) glowClass = "bg-blue-200";
+              else if (glowLevel === 1) glowClass = "bg-blue-200/60";
+              else if (glowLevel === 2) glowClass = "bg-blue-200/40";
+              else if (glowLevel === 3) glowClass = "bg-blue-200/20";
+
+              return (
+                <button
+                  key={`day-${day}`}
+                  onClick={() => handleDayClick(day)}
+                  className={`aspect-square rounded-lg relative overflow-hidden border ${
+                    hasImage ? "border-blue-500" : "border-gray-200"
+                  } ${glowClass} hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 >
-                  {day}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  {hasImage && entry && (
+                    <div className="absolute inset-0 bg-cover bg-center">
+                      <img
+                        src={entry.image}
+                        alt=""
+                        className="w-full h-full object-cover opacity-75"
+                      />
+                    </div>
+                  )}
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center ${
+                      hasImage
+                        ? "text-white font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                        : "text-gray-700"
+                    }`}
+                  >
+                    {day}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && Object.keys(entriesByDay).length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+            <ImageOff size={48} className="mb-2 opacity-50" />
+            <p>No photos this month</p>
+            <p className="text-sm">Click &quot;Add Photo&quot; to get started!</p>
+          </div>
+        )}
       </div>
 
       {/* Photo Modal */}
@@ -331,7 +405,7 @@ const CalendarWithPhotos = () => {
         {activePhoto && (
           <div className="space-y-4">
             <img
-              src={activePhoto.src}
+              src={activePhoto.image}
               alt="Progress"
               className="w-full rounded-lg"
             />
@@ -346,6 +420,33 @@ const CalendarWithPhotos = () => {
                 <strong>Body Fat:</strong> {activePhoto.bodyFat}%
               </div>
             </div>
+            
+            {/* Delete button */}
+            {deleteConfirm === activePhoto.date ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleDelete(activePhoto.date)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Confirm Delete
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setDeleteConfirm(activePhoto.date)}
+                className="w-full bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16} />
+                Delete Entry
+              </button>
+            )}
           </div>
         )}
       </Modal>

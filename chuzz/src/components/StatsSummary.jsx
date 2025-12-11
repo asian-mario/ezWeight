@@ -2,6 +2,16 @@ import React from 'react';
 import SimpleLineChart from './Chart';
 
 const StatsSummary = ({ title, data, dataKey, color, unit }) => {
+  // Guard against empty data
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="font-semibold mb-2">{title}</h3>
+        <p className="text-gray-500 text-center py-8">No data available</p>
+      </div>
+    );
+  }
+
   const start = data[0][dataKey];
   const end = data[data.length - 1][dataKey];
   const diff = (end - start).toFixed(1);
