@@ -4,7 +4,7 @@ import { Play, Pause, ChevronLeft, ChevronRight, Trash2, ImageOff } from "lucide
 import Modal from "./Modal";
 import { useBodyProgress } from "../context/BodyProgressProvider";
 
-const CalendarWithPhotos = ({ onDataChange }) => {
+const CalendarWithPhotos = ({ onDataChange, onDayClick }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isPlayingTimelapse, setIsPlayingTimelapse] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -121,6 +121,14 @@ const CalendarWithPhotos = ({ onDataChange }) => {
     const entry = entriesByDay[day];
     if (entry) {
       setActivePhoto(entry);
+    } else {
+      // Empty slot - open add dialog with this date
+      if (onDayClick) {
+        const dateStr = `${selectedDate.getFullYear()}-${String(
+          selectedDate.getMonth() + 1
+        ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        onDayClick(dateStr);
+      }
     }
   };
 

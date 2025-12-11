@@ -230,6 +230,28 @@ const ProgressTracker = () => {
     setRefreshKey(prev => prev + 1);
   };
 
+  const handleDayClick = (dateStr) => {
+    setFormData({
+      weight: "",
+      bodyFat: "",
+      date: dateStr,
+      photo: null,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDialog = () => {
+    // Set today's date as default
+    const today = new Date().toISOString().split('T')[0];
+    setFormData({
+      weight: "",
+      bodyFat: "",
+      date: today,
+      photo: null,
+    });
+    setIsDialogOpen(true);
+  };
+
   return (
     <>
       <header className="mb-6 flex justify-between items-center flex-wrap gap-2">
@@ -260,7 +282,7 @@ const ProgressTracker = () => {
           </label>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded flex items-center gap-2"
-            onClick={() => setIsDialogOpen(true)}
+            onClick={handleOpenDialog}
           >
             <Plus size={16} />
             <span>Add Photo</span>
@@ -270,7 +292,7 @@ const ProgressTracker = () => {
 
       <div className="space-y-6 pb-16">
         <StreakBadge />
-        <CalendarWithPhotos onDataChange={handleDataChange} key={refreshKey} />
+        <CalendarWithPhotos onDataChange={handleDataChange} onDayClick={handleDayClick} key={refreshKey} />
         
         {/* Charts - only show if we have data */}
         {loading ? (
